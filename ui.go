@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/twstrike/otr3"
+	otr "github.com/twstrike/otr3/compat"
 	"github.com/twstrike/xmpp-client/xmpp"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/html"
@@ -122,12 +122,12 @@ type Session struct {
 	// conversations maps from a JID (without the resource) to an OTR
 	// conversation. (Note that unencrypted conversations also pass through
 	// OTR.)
-	conversations map[string]*otr3.Conversation
+	conversations map[string]*otr.Conversation
 	// knownStates maps from a JID (without the resource) to the last known
 	// presence state of that contact. It's used to deduping presence
 	// notifications.
 	knownStates map[string]string
-	privateKey  *otr3.PrivateKey
+	privateKey  *otr.PrivateKey
 	config      *Config
 	// lastMessageFrom is the JID (without the resource) of the contact
 	// that we last received a message from.
@@ -381,9 +381,9 @@ func main() {
 		account:           config.Account,
 		conn:              conn,
 		term:              term,
-		conversations:     make(map[string]*otr3.Conversation),
+		conversations:     make(map[string]*otr.Conversation),
 		knownStates:       make(map[string]string),
-		privateKey:        new(otr3.PrivateKey),
+		privateKey:        new(otr.PrivateKey),
 		config:            config,
 		pendingRosterChan: make(chan *rosterEdit),
 		pendingSubscribes: make(map[string]string),
@@ -586,7 +586,7 @@ MainLoop:
 					s.conn.Send(cmd.to, string(message))
 				}
 			case otrCommand:
-				s.conn.Send(string(cmd.User), otr3.QueryMessage)
+				s.conn.Send(string(cmd.User), otr.QueryMessage)
 			case otrInfoCommand:
 				info(term, fmt.Sprintf("Your OTR fingerprint is %x", s.privateKey.Fingerprint()))
 				for to, conversation := range s.conversations {
@@ -785,7 +785,7 @@ func (s *Session) processClientMessage(stanza *xmpp.ClientMessage) {
 
 	conversation, ok := s.conversations[from]
 	if !ok {
-		conversation = new(otr3.Conversation)
+		conversation = new(otr.Conversation)
 		conversation.PrivateKey = s.privateKey
 		s.conversations[from] = conversation
 	}
@@ -793,17 +793,17 @@ func (s *Session) processClientMessage(stanza *xmpp.ClientMessage) {
 	out, encrypted, change, toSend, err := conversation.Receive([]byte(stanza.Body))
 	if err != nil {
 		alert(s.term, "While processing message from "+from+": "+err.Error())
-		s.conn.Send(stanza.From, otr3.ErrorPrefix+"Error processing message")
+		s.conn.Send(stanza.From, otr.ErrorPrefix+"Error processing message")
 	}
 	for _, msg := range toSend {
 		s.conn.Send(stanza.From, string(msg))
 	}
 	switch change {
-	case otr3.NewKeys:
+	case otr.NewKeys:
 		s.input.SetPromptForTarget(from, true)
 		info(s.term, fmt.Sprintf("New OTR session with %s established", from))
 		printConversationInfo(s, from, conversation)
-	case otr3.ConversationEnded:
+	case otr.ConversationEnded:
 		s.input.SetPromptForTarget(from, false)
 		// This is probably unsafe without a policy that _forces_ crypto to
 		// _everyone_ by default and refuses plaintext. Users might not notice
@@ -825,19 +825,19 @@ func (s *Session) processClientMessage(stanza *xmpp.ClientMessage) {
 		} else {
 			info(s.term, fmt.Sprintf("%s has ended the secure conversation. You should do likewise with /otr-end %s", from, from))
 		}
-	case otr3.SMPSecretNeeded:
+	case otr.SMPSecretNeeded:
 		info(s.term, fmt.Sprintf("%s is attempting to authenticate. Please supply mutual shared secret with /otr-auth user secret", from))
 		if question := conversation.SMPQuestion(); len(question) > 0 {
 			info(s.term, fmt.Sprintf("%s asks: %s", from, question))
 		}
-	case otr3.SMPComplete:
+	case otr.SMPComplete:
 		info(s.term, fmt.Sprintf("Authentication with %s successful", from))
 		fpr := conversation.TheirPublicKey.Fingerprint()
 		if len(s.config.UserIdForFingerprint(fpr)) == 0 {
 			s.config.KnownFingerprints = append(s.config.KnownFingerprints, KnownFingerprint{fingerprint: fpr, UserId: from})
 		}
 		s.config.Save()
-	case otr3.SMPFailed:
+	case otr.SMPFailed:
 		alert(s.term, fmt.Sprintf("Authentication with %s failed", from))
 	}
 
@@ -867,7 +867,7 @@ func (s *Session) processClientMessage(stanza *xmpp.ClientMessage) {
 
 	if s.config.OTRAutoStartSession && detectedOTRVersion >= 2 {
 		info(s.term, fmt.Sprintf("%s appears to support OTRv%d. We are attempting to start an OTR session with them.", from, detectedOTRVersion))
-		s.conn.Send(from, otr3.QueryMessage)
+		s.conn.Send(from, otr.QueryMessage)
 	} else if s.config.OTRAutoStartSession && detectedOTRVersion == 1 {
 		info(s.term, fmt.Sprintf("%s appears to support OTRv%d. You should encourage them to upgrade their OTR client!", from, detectedOTRVersion))
 	}
@@ -1434,7 +1434,7 @@ func (l *lineLogger) Write(data []byte) (int, error) {
 	return origLen, nil
 }
 
-func printConversationInfo(s *Session, uid string, conversation *otr3.Conversation) {
+func printConversationInfo(s *Session, uid string, conversation *otr.Conversation) {
 	fpr := conversation.TheirPublicKey.Fingerprint()
 	fprUid := s.config.UserIdForFingerprint(fpr)
 	info(s.term, fmt.Sprintf("  Fingerprint  for %s: %x", uid, fpr))
