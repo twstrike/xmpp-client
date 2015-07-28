@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agl/xmpp-client/xmpp"
-	"golang.org/x/crypto/otr"
+	"github.com/twstrike/otr3"
+	"github.com/twstrike/xmpp-client/xmpp"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/proxy"
 )
@@ -154,7 +154,7 @@ func enroll(config *Config, term *terminal.Terminal) bool {
 
 	term.SetPrompt("File to import libotr private key from (enter to generate): ")
 
-	var priv otr.PrivateKey
+	var priv otr3.PrivateKey
 	for {
 		importFile, err := term.ReadLine()
 		if err != nil {
