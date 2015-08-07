@@ -1438,7 +1438,7 @@ func printConversationInfo(s *Session, uid string, conversation *otr.Conversatio
 	fpr := conversation.TheirPublicKey.Fingerprint()
 	fprUid := s.config.UserIdForFingerprint(fpr)
 	info(s.term, fmt.Sprintf("  Fingerprint  for %s: %x", uid, fpr))
-	info(s.term, fmt.Sprintf("  Session  ID  for %s: %x", uid, conversation.GetSSID()))
+	info(s.term, fmt.Sprintf("  Session  ID  for %s: %x", uid, conversation.SSID))
 	if fprUid == uid {
 		info(s.term, fmt.Sprintf("  Identity key for %s is verified", uid))
 	} else if len(fprUid) > 1 {
